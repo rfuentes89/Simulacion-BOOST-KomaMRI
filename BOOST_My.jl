@@ -1,5 +1,3 @@
-
-
 using KomaMRICore, KomaMRIPlots, CUDA, PlotlyJS # Essentials
 
 using Suppressor, ProgressLogging # Extras
@@ -180,8 +178,6 @@ function BOOST(
                 preps += fatsat
             end
             # Contrst dependant flip angle
-            #bssfp = bSSFP(iNAV_lines, im_segments, iNAV_flip_angle,
-                #im_flip_angle[contrast]; sample)
             bssfp = bSSFP(iNAV_lines, im_segments, iNAV_flip_angle, im_flip_angle[contrast]; sample)
             # Concatenating seq blocks
             seq += preps
@@ -266,11 +262,10 @@ relayout!(p0,
 p0
 
 # Simulating first heartbeat
-hbpm = 40:10:100
+hbpm = 40:4:100
 RRs = 60 ./ (hbpm)  # RR [s]
 
 mag1 = zeros(ComplexF64, im_segments, Niso*3, length(RRs))
-#size(mag1)
 #@progress for (m, RR) = enumerate(RRs), (n, α) = enumerate(FAs)
 @progress for (m, RR) = enumerate(RRs)
     #seq_params1 = merge(seq_params, (; im_flip_angle=[110, α], RR))
@@ -280,16 +275,13 @@ mag1 = zeros(ComplexF64, im_segments, Niso*3, length(RRs))
     seq1        = BOOST(seq_params1...)
     obj1        = carotid_phantom(0)
     magaux = @suppress simulate(obj1, seq1, sys; sim_params=sim_params1)
-    #println("mag1[:, :, $m] shape: ", size(mag1[:, :, m]))
-    #println("magaux slice shape: ", size(magaux[end-2im_segments+1:end-im_segments, :]))
-    #mag1[:, :, n, m] .= magaux[end-im_segments+1:end, :] # Last heartbeat
     mag1[:, :, m] .= magaux[end-2im_segments+1:end-im_segments, :] # First heartbeat
 end
 
 #signal_1_hb_caro
 
 #Second heartbeat
-hbpm = 40:10:100
+hbpm = 40:4:100
 RRs = 60 ./ (hbpm)  # RR [s]
 Δfs = (-1:0.2:1) .* (γ * sys.B0 * 1e-6)  # off-resonance Δf [s]
 mag2 = zeros(ComplexF64, im_segments, Niso*3, length(RRs))
@@ -303,7 +295,7 @@ mag2 = zeros(ComplexF64, im_segments, Niso*3, length(RRs))
     mag2[:, :, m] .= magaux[end-im_segments+1:end, :] #Last heartbeat
 end
 
-signal_2_hb_caro
+#signal_2_hb_caro
 
 # Labels
 labels = ["Carotid", "Blood", "Fat (T₁=183 ms)"]
@@ -327,7 +319,7 @@ signal_1hb_diff = abs.(signal_1hb_bloo .- signal_1hb_caro)
 # Plotting results
 # Mean
 s11 = scatter(;
-    x=hbpm,
+    x=RRs .* 1000,
     #y=mean_caro_1hb[:],
     y=signal_1hb_caro[:],
     name=labels[1],
@@ -335,7 +327,7 @@ s11 = scatter(;
     line=attr(; color=colors[1]),
 )
 s12 = scatter(;
-    x=hbpm,
+    x=RRs .* 1000,
     #y=mean_bloo_1hb[:],
     y=signal_1hb_bloo[:],
     name=labels[2],
@@ -343,7 +335,7 @@ s12 = scatter(;
     line=attr(; color=colors[2]),
 )
 s13 = scatter(;
-    x=hbpm,
+    x=RRs .* 1000,
     #y=mean_diff_1hb[:],
     y=signal_1hb_diff[:],
     name="|Blood-Caro|",
@@ -353,7 +345,7 @@ s13 = scatter(;
 # Std
 s14 = scatter(;
     #x=[FAs; reverse(FAs)],
-    x=hbpm,
+    x=RRs .* 1000,
     #y=[(mean_caro_1hb .- std_caro_1hb)[:]; reverse((mean_caro_1hb .+ std_caro_1hb)[:])],
     y=signal_1hb_fat[:],
 	name=labels[3],
@@ -368,16 +360,15 @@ relayout!(
     fig1;
     yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
     xaxis=attr(;
-        title="Heart Rate [bpm]",
+        title="RRs [ms]",
         tickmode="array",
         #tickvals=[FAs[1], 80, 110, 130, FAs[end]],
-        tickvals=[hbpm[1], hbpm[end]],
+        #tickvals=[hbpm[1], hbpm[end]],
+        tickvals=[round(Int, RRs[end] * 1000), round(Int, RRs[1] * 1000)],
         constrain="domain",
     ),
     font=attr(; family="CMU Serif", size=16, scaleanchor="x", scaleratio=1),
-    #yaxis_range=[0, 0.3],
-    #xaxis_range=[FAs[1], FAs[end]],
-    xaxis_range=[hbpm[1], hbpm[end]],
+    xaxis_range=[RRs[end] * 1000, RRs[1] * 1000],
     width=600,
     height=400,
     hovermode="x unified",
@@ -404,7 +395,7 @@ signal_2hb_diff = abs.(signal_2hb_bloo2 .- signal_2hb_caro)
 # Mean
 s21 = scatter(;
     #x=FFAs,
-    x=hbpm,
+    x=RRs .* 1000,
     #y=mean_caro2_2hb[:],
     y=signal_2hb_caro[:],
     name=labels[1],
@@ -413,7 +404,7 @@ s21 = scatter(;
 )
 s22 = scatter(;
     #x=FFAs,
-    x=hbpm,
+    x=RRs .* 1000,
     #y=mean_bloo2_2hb[:],
     y=signal_2hb_bloo2[:],
     name=labels[2],
@@ -422,7 +413,7 @@ s22 = scatter(;
 )
 s23 = scatter(;
     #x=FFAs,
-    x=hbpm,
+    x=RRs .* 1000,
     #y=mean_fat2_2hb[:],
     y=signal_2hb_fat[:],
     name=labels[3],
@@ -431,7 +422,7 @@ s23 = scatter(;
 )
 s24 = scatter(;
     #x=FFAs,
-    x=hbpm,
+    x=RRs .* 1000,
     #y=mean_diff2_2hb[:],
     y=signal_2hb_diff[:],
     name="|Blood-Myoc|",
@@ -446,16 +437,14 @@ relayout!(
     yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
     xaxis=attr(;
         #title="FatSat flip angle [deg]",
-        title="Heart Rate [bpm]",
+        title="RRs [ms]",
         tickmode="array",
         #tickvals=[FFAs[1], 130, 150, 180, FFAs[end]],
-        tickvals=[hbpm[1], hbpm[end]],
+        tickvals=[round(Int, RRs[end] * 1000), round(Int, RRs[1] * 1000)],
         constrain="domain",
     ),
     font=attr(; family="CMU Serif", size=16, scaleanchor="x", scaleratio=1),
-    #yaxis_range=[0, 0.4],
-    #xaxis_range=[FFAs[1], FFAs[end]],
-    xaxis_range=[hbpm[1], hbpm[end]],
+    xaxis_range=[RRs[end] * 1000, RRs[1] * 1000],
     width=600,
     height=400,
     hovermode="x unified",
@@ -464,27 +453,27 @@ fig2
 
 
 # Substracted
-signal_caro_BB = abs.(signal_2hb_caro .- signal_1hb_caro)
+signal_caro_BB = abs.(signal_1hb_caro .- signal_2hb_caro)
 signal_blood_BB = abs.(signal_1hb_bloo .- signal_2hb_bloo2)
 signal_fat_BB = abs.(signal_1hb_fat .- signal_2hb_fat)
 diff_BB = abs.(signal_blood_BB .- signal_caro_BB)
 
 s13 = scatter(;
-    x=hbpm,
+    x=RRs .* 1000,
     y=signal_caro_BB[:],
     name="Substracted "*labels[1],
     legendgroup=labels[1],
     line=attr(; color=colors[1]),
 )
 s23 = scatter(;
-    x=hbpm,
+    x=RRs .* 1000,
     y=signal_blood_BB[:],
     name="Substracted "*labels[2],
     legendgroup=labels[2],
     line=attr(; color=colors[2]),
 )
 s33 = scatter(;
-    x=hbpm,
+    x=RRs .* 1000,
     y=diff_BB[:],
     name="|Sub. Blood - Sub. Caro|",
     legendgroup="|Blood-Caro|",
@@ -493,7 +482,7 @@ s33 = scatter(;
 # Std
 s34 = scatter(;
     #x=[T2ps; reverse(T2ps)],
-    x = hbpm,
+    x = RRs .* 1000,
     #y=[(mean_caro6 .- std_caro6)[:]; reverse((mean_caro6 .+ std_caro6)[:])],
     y = signal_fat_BB[:],
     name=labels[3],
@@ -508,16 +497,13 @@ relayout!(
     yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
     xaxis=attr(;
         #title="T2prep duration [deg]",
-        title ="Heart rate [bpm]",
+        title ="RRs [ms]",
         tickmode="array",
-        #tickvals=[T2ps[1], 50, 70, T2ps[end]],
-        tickvals=[hbpm[1], hbpm[end]],
+        tickvals=[round(Int, RRs[end] * 1000), round(Int, RRs[1] * 1000)],
         constrain="domain",
     ),
     font=attr(; family="CMU Serif", size=16, scaleanchor="x", scaleratio=1),
-    #yaxis_range=[0, 0.2],
-    #xaxis_range=[T2ps[1], T2ps[end]],
-    xaxis_range=[hbpm[1], hbpm[end]],
+    xaxis_range=[RRs[end] * 1000, RRs[1] * 1000],
     width=600,
     height=400,
     hovermode="x unified",
