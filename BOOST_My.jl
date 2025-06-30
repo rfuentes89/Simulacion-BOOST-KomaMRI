@@ -1,3 +1,4 @@
+
 using KomaMRICore, KomaMRIPlots, CUDA, PlotlyJS # Essentials
 
 using Suppressor, ProgressLogging # Extras
@@ -21,7 +22,7 @@ Tfatsat = 26.624e-3 # 26.6 [ms] FatSat duration
 T2prep_duration = 50e-3 # 50 [ms]
 
 # Acquisition
-RR = 1.0 				# 1 [s]
+RR = 1.3 				# 1 [s]
 dummy_heart_beats = 3 	# Steady-state
 TR = 7e-3             # 5.3 [ms] RF Low SAR
 #TE = TR / 2 			# bSSFP condition
@@ -178,6 +179,8 @@ function BOOST(
                 preps += fatsat
             end
             # Contrst dependant flip angle
+            #bssfp = bSSFP(iNAV_lines, im_segments, iNAV_flip_angle,
+                #im_flip_angle[contrast]; sample)
             bssfp = bSSFP(iNAV_lines, im_segments, iNAV_flip_angle, im_flip_angle[contrast]; sample)
             # Concatenating seq blocks
             seq += preps
@@ -266,6 +269,7 @@ hbpm = 40:4:100
 RRs = 60 ./ (hbpm)  # RR [s]
 
 mag1 = zeros(ComplexF64, im_segments, Niso*3, length(RRs))
+#size(mag1)
 #@progress for (m, RR) = enumerate(RRs), (n, α) = enumerate(FAs)
 @progress for (m, RR) = enumerate(RRs)
     #seq_params1 = merge(seq_params, (; im_flip_angle=[110, α], RR))
@@ -275,27 +279,11 @@ mag1 = zeros(ComplexF64, im_segments, Niso*3, length(RRs))
     seq1        = BOOST(seq_params1...)
     obj1        = carotid_phantom(0)
     magaux = @suppress simulate(obj1, seq1, sys; sim_params=sim_params1)
+    #println("mag1[:, :, $m] shape: ", size(mag1[:, :, m]))
+    #println("magaux slice shape: ", size(magaux[end-2im_segments+1:end-im_segments, :]))
+    #mag1[:, :, n, m] .= magaux[end-im_segments+1:end, :] # Last heartbeat
     mag1[:, :, m] .= magaux[end-2im_segments+1:end-im_segments, :] # First heartbeat
 end
-
-#signal_1_hb_caro
-
-#Second heartbeat
-hbpm = 40:4:100
-RRs = 60 ./ (hbpm)  # RR [s]
-Δfs = (-1:0.2:1) .* (γ * sys.B0 * 1e-6)  # off-resonance Δf [s]
-mag2 = zeros(ComplexF64, im_segments, Niso*3, length(RRs))
-#@progress for (m, RR) = enumerate(RRs), (n, FatSat_flip_angle) = enumerate(FFAs)
-@progress for (m, RR) = enumerate(RRs)
-    seq_params2 = merge(seq_params, (; RR))
-    sim_params2 = merge(sim_params, Dict("sim_method"=>BlochDict()))
-    seq2        = BOOST(seq_params2...)
-    obj2        = carotid_phantom(0)
-    magaux = @suppress simulate(obj2, seq2, sys; sim_params=sim_params2)
-    mag2[:, :, m] .= magaux[end-im_segments+1:end, :] #Last heartbeat
-end
-
-#signal_2_hb_caro
 
 # Labels
 labels = ["Carotid", "Blood", "Fat (T₁=183 ms)"]
@@ -342,7 +330,7 @@ s13 = scatter(;
     legendgroup="|Blood-Caro|",
     line=attr(color=colors[4])
 )
-# Std
+
 s14 = scatter(;
     #x=[FAs; reverse(FAs)],
     x=RRs .* 1000,
@@ -354,7 +342,6 @@ s14 = scatter(;
 )
 
 # Plots
-#fig = plot([s1, s2, s3, s4, s5, s6])
 fig1 = plot([s11, s12, s13, s14])
 relayout!(
     fig1;
@@ -368,6 +355,9 @@ relayout!(
         constrain="domain",
     ),
     font=attr(; family="CMU Serif", size=16, scaleanchor="x", scaleratio=1),
+    #yaxis_range=[0, 0.3],
+    #xaxis_range=[FAs[1], FAs[end]],
+    #xaxis_range=[hbpm[1], hbpm[end]],
     xaxis_range=[RRs[end] * 1000, RRs[1] * 1000],
     width=600,
     height=400,
@@ -375,6 +365,20 @@ relayout!(
 )
 fig1
 
+#Second heartbeat
+hbpm = 40:4:100
+RRs = 60 ./ (hbpm)  # RR [s]
+
+mag2 = zeros(ComplexF64, im_segments, Niso*3, length(RRs))
+#@progress for (m, RR) = enumerate(RRs), (n, FatSat_flip_angle) = enumerate(FFAs)
+@progress for (m, RR) = enumerate(RRs)
+    seq_params2 = merge(seq_params, (; RR))
+    sim_params2 = merge(sim_params, Dict("sim_method"=>BlochDict()))
+    seq2        = BOOST(seq_params2...)
+    obj2        = carotid_phantom(0)
+    magaux = @suppress simulate(obj2, seq2, sys; sim_params=sim_params2)
+    mag2[:, :, m] .= magaux[end-im_segments+1:end, :] #Last heartbeat
+end
 
 ## Calculating results
 signal_2hb_caro = reshape(
@@ -440,10 +444,14 @@ relayout!(
         title="RRs [ms]",
         tickmode="array",
         #tickvals=[FFAs[1], 130, 150, 180, FFAs[end]],
+        #tickvals=[hbpm[1], hbpm[end]],
         tickvals=[round(Int, RRs[end] * 1000), round(Int, RRs[1] * 1000)],
         constrain="domain",
     ),
     font=attr(; family="CMU Serif", size=16, scaleanchor="x", scaleratio=1),
+    #yaxis_range=[0, 0.4],
+    #xaxis_range=[FFAs[1], FFAs[end]],
+    #xaxis_range=[hbpm[1], hbpm[end]],
     xaxis_range=[RRs[end] * 1000, RRs[1] * 1000],
     width=600,
     height=400,
@@ -451,8 +459,7 @@ relayout!(
 )
 fig2
 
-
-# Substracted
+# Black Blood (1HB - 2HB)
 signal_caro_BB = abs.(signal_1hb_caro .- signal_2hb_caro)
 signal_blood_BB = abs.(signal_1hb_bloo .- signal_2hb_bloo2)
 signal_fat_BB = abs.(signal_1hb_fat .- signal_2hb_fat)
@@ -480,7 +487,7 @@ s33 = scatter(;
     line=attr(color=colors[4])
 )
 # Std
-s34 = scatter(;
+s43 = scatter(;
     #x=[T2ps; reverse(T2ps)],
     x = RRs .* 1000,
     #y=[(mean_caro6 .- std_caro6)[:]; reverse((mean_caro6 .+ std_caro6)[:])],
@@ -491,7 +498,7 @@ s34 = scatter(;
 )
 
 # Plots
-figBB = plot([s13, s23, s33, s34])
+figBB = plot([s13, s23, s33, s43])
 relayout!(
     figBB;
     yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
@@ -499,13 +506,84 @@ relayout!(
         #title="T2prep duration [deg]",
         title ="RRs [ms]",
         tickmode="array",
+        #tickvals=[T2ps[1], 50, 70, T2ps[end]],
+        #tickvals=[hbpm[1], hbpm[end]],
         tickvals=[round(Int, RRs[end] * 1000), round(Int, RRs[1] * 1000)],
         constrain="domain",
     ),
     font=attr(; family="CMU Serif", size=16, scaleanchor="x", scaleratio=1),
+    #yaxis_range=[0, 0.2],
     xaxis_range=[RRs[end] * 1000, RRs[1] * 1000],
     width=600,
     height=400,
     hovermode="x unified",
 )
 figBB
+
+#Fat Saturation
+FAs = 90:10:180          # flip angle [deg]
+Δfs = (-1:0.2:1) .* (γ * sys.B0 * 1e-6)  # off-resonance Δf [s]
+mag3 = zeros(ComplexF64, im_segments, Niso*3, length(FAs), length(Δfs))
+@progress for (m, Δf) = enumerate(Δfs), (n, FatSat_flip_angle) = enumerate(FAs)
+	seq_params3 = merge(seq_params, (; FatSat_flip_angle))
+	sim_params3 = merge(sim_params, Dict("sim_method"=>BlochDict()))
+	seq3        = BOOST(seq_params3...)
+	obj3        = carotid_phantom(Δf)
+	magaux = @suppress simulate(obj3, seq3, sys; sim_params=sim_params3)
+	mag3[:, :, n, m] .= magaux[end-im_segments+1:end, :] # Last heartbeat
+end
+
+#Fat Saturation
+signal_2hb_caro = reshape(
+    mean(abs.(mean(mag3[:, spins[1], :, :], 3)), 1), length(FAs), length(Δfs)
+)
+signal_2hb_bloo2 = reshape(
+    mean(abs.(mean(mag3[:, spins[2], :, :], 3)), 1), length(FAs), length(Δfs)
+)
+signal_2hb_fat = reshape(
+    mean(abs.(mean(mag3[:, spins[3], :, :], 3)), 1), length(FAs), length(Δfs)
+)
+
+# Plotting results
+s14 = scatter(;
+    x=FAs,
+    y=signal_2hb_caro[:],
+    name=labels[1],
+    legendgroup=labels[1],
+    line=attr(; color=colors[1]),
+)
+s24 = scatter(;
+    x=FAs,
+    y=signal_2hb_bloo2[:],
+    name=labels[2],
+    legendgroup=labels[2],
+    line=attr(; color=colors[2]),
+)
+s34 = scatter(;
+    x=FAs,
+    y=signal_2hb_fat[:],
+    name=labels[3],
+    legendgroup=labels[3],
+    line=attr(; color=colors[3]),
+)
+# Plots
+figFatSat = plot([s14, s24, s34])
+relayout!(
+    figFatSat;
+    yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
+    xaxis=attr(;
+        title="FatSat flip angle [deg]",
+        tickmode="array",
+        tickvals=[FAs[1], 130, 150, 180, FAs[end]],
+        #tickvals=[FAs[1], 100, 120, 160, FAs[end]],
+        constrain="domain",
+    ),
+    font=attr(; family="CMU Serif", size=16, scaleanchor="x", scaleratio=1),
+    yaxis_range=[0, 0.4],
+    #xaxis_range=[FFAs[1], FFAs[end]],
+    xaxis_range=[FAs[1], FAs[end]],
+    width=600,
+    height=400,
+    hovermode="x unified",
+)
+figFatSat
