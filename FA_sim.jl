@@ -505,10 +505,10 @@ savefig(fig1, "bSSFP_1hb.html")
 savefig(fig2, "bSSFP_2hb.html")
 
 #Simulacion para iNav_lines=2
-![Resultado iNav=2](simulaciones FAs/FAs_iNav_2.png)
+![Resultado iNav=2](simulaciones%20FAs/FAs_iNav_2.png)
 
 #Simulacion para iNav_lines=4
-![Resultado iNav=4](simulaciones FAs/FAs_iNavs_4.png)
+![Resultado iNav=4](simulaciones%20FAs/FAs_iNavs_4.png)
 
 #Simulacion para iNav_lines=6
-![Resultado iNav=6](simulaciones FAs/FAs_iNavs_6.png)
+![Resultado iNav=6](simulaciones%20FAs/FAs_iNavs_6.png)
