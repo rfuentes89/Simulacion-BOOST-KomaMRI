@@ -350,6 +350,7 @@ relayout!(
     hovermode="x unified",
 )
 fig1
+## Imagen simulacion 1HB
 
 #Second heartbeat
 FAs = 0:10:180          # flip angle [deg]
@@ -502,3 +503,12 @@ figFatSat
 savefig(figFatSat, "FatSat.html")
 savefig(fig1, "bSSFP_1hb.html")
 savefig(fig2, "bSSFP_2hb.html")
+
+#Simulacion para iNav_lines=2
+(simulaciones FAs/FAs_iNav_2.png)
+
+#Simulacion para iNav_lines=4
+(simulaciones FAs/FAs_iNavs_4.png)
+
+#Simulacion para iNav_lines=6
+(simulaciones FAs/FAs_iNavs_6.png)
