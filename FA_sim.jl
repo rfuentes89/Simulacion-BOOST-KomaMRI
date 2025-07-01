@@ -29,7 +29,7 @@ TR = 7e-3             # 5.3 [ms] RF Low SAR
 TE = 3.51e-3 			# 
 iNAV_lines = 2          # FatSat-Acq delay: iNAV_lines * TR
 #iNAV_flip_angle = 3.2   # 3.2 [deg]
-iNAV_flip_angle = 0.0
+iNAV_flip_angle = 3.2
 im_segments = 30        # Acquisitino window: im_segments * TR
 
 # To be optimized
