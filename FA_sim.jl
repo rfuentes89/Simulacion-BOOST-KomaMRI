@@ -24,18 +24,18 @@ T2prep_duration = 50e-3 # 50 [ms]
 # Acquisition
 RR = 1.3 				# 1 [s]
 dummy_heart_beats = 3 	# Steady-state
-TR = 7e-3             # 5.3 [ms] RF Low SAR
+TR = 7.0e-3             # 5.3 [ms] RF Low SAR
 #TE = TR / 2 			# bSSFP condition
 TE = 3.51e-3 			# 
-iNAV_lines = 2          # FatSat-Acq delay: iNAV_lines * TR
+iNAV_lines = 1          # FatSat-Acq delay: iNAV_lines * TR
 #iNAV_flip_angle = 3.2   # 3.2 [deg]
-iNAV_flip_angle = 3.2
+iNAV_flip_angle = 3.2 # 3.2 [deg]
 im_segments = 30        # Acquisitino window: im_segments * TR
 
 # To be optimized
-im_flip_angle = [110, 80] # 80 [deg]
+im_flip_angle = [90, 50] # 80 [deg]
 FatSat_flip_angle = 180   # 180 [deg]
-IR_inversion_time = 90e-3 # 90 [ms] 
+IR_inversion_time = 90e-3 # 90 [ms]
 
 seq_params = (;
     dummy_heart_beats,
@@ -185,6 +185,12 @@ function BOOST(
             seq += bssfp
             # RR interval consideration
             RRdelay = RR  - dur(bssfp) - dur(preps)
+            # Se comprueba si la duración de los eventos es mayor que el RR
+            if RRdelay < 0
+                # Si es negativo, se muestra una advertencia y se ajusta el delay a 0 para evitar el error
+                @warn "La duración de la secuencia ($(round(dur(bssfp) + dur(preps), digits=4))s) excede el RR ($(RR)s). El delay se ajustará a 0." maxlog=1
+                RRdelay = 0
+            end
             seq += sample ? ADC(80, RRdelay) : Delay(RRdelay)
         end
     end
@@ -268,7 +274,7 @@ mag1 = zeros(ComplexF64, im_segments, Niso*3, length(FAs), length(RRs))
 #size(mag1)
 @progress for (m, RR) = enumerate(RRs), (n, α) = enumerate(FAs)
 #@progress for (m, RR) = enumerate(RRs)
-    seq_params1 = merge(seq_params, (; im_flip_angle=[α, 80], RR))
+    seq_params1 = merge(seq_params, (; im_flip_angle=[α, 50], RR))
     #seq_params1 = merge(seq_params, (; RR))
     #sim_params1 = merge(sim_params, Dict("sim_method"=>BlochDict()))
     sim_params1 = merge(sim_params, Dict("sim_method"=>BlochDict()))
@@ -333,7 +339,7 @@ s13 = scatter(;
 fig1 = plot([s11, s12, s13])
 relayout!(
     fig1;
-    title="First heartbeat",
+    title="First heartbeat (iNav lines = $(iNAV_lines))", 
     #title="First heartbeat (RR = $(round(Int, RRs[1] * 1000)) ms)",
     yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
     xaxis=attr(;
@@ -350,7 +356,6 @@ relayout!(
     hovermode="x unified",
 )
 fig1
-## Imagen simulacion 1HB
 
 #Second heartbeat
 FAs = 0:10:180          # flip angle [deg]
@@ -358,7 +363,7 @@ RRs = 60 ./ (40:10:100)  # RR [s]
 
 mag2 = zeros(ComplexF64, im_segments, Niso*3, length(FAs), length(RRs))
 @progress for (m, RR) = enumerate(RRs), (n, α ) = enumerate(FAs)
-    seq_params2 = merge(seq_params, (; im_flip_angle=[110,α], RR))
+    seq_params2 = merge(seq_params, (; im_flip_angle=[90,α], RR))
     sim_params2 = merge(sim_params, Dict("sim_method"=>BlochDict()))
     seq2        = BOOST(seq_params2...)
     obj2        = carotid_phantom(0)
@@ -415,7 +420,7 @@ s24 = scatter(;
 fig2 = plot([s21, s22, s24])
 relayout!(
     fig2;
-    title="Second heartbeat",
+    title="Second heartbeat (iNav lines = $(iNAV_lines))",
     yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
     xaxis=attr(;
         title="Flip angle [deg]",
@@ -446,10 +451,10 @@ mag3 = zeros(ComplexF64, im_segments, Niso*3, length(FFAs), length(Δfs))
 end
 
 #Fat Saturation
-signal_2hb_caro = reshape(
+signal_2hb_caro_fat = reshape(
     mean(abs.(mean(mag3[:, spins[1], :, :], 3)), 1), length(FFAs), length(Δfs)
 )
-signal_2hb_bloo2 = reshape(
+signal_2hb_bloo2_fat = reshape(
     mean(abs.(mean(mag3[:, spins[2], :, :], 3)), 1), length(FFAs), length(Δfs)
 )
 signal_2hb_fat = reshape(
@@ -459,14 +464,14 @@ signal_2hb_fat = reshape(
 # Plotting results
 s14 = scatter(;
     x=FFAs,
-    y=signal_2hb_caro[:],
+    y=signal_2hb_caro_fat[:],
     name=labels[1],
     legendgroup=labels[1],
     line=attr(; color=colors[1]),
 )
 s24 = scatter(;
     x=FFAs,
-    y=signal_2hb_bloo2[:],
+    y=signal_2hb_bloo2_fat[:],
     name=labels[2],
     legendgroup=labels[2],
     line=attr(; color=colors[2]),
@@ -482,7 +487,7 @@ s34 = scatter(;
 figFatSat = plot([s14, s24, s34])
 relayout!(
     figFatSat;
-    title="FatSat",
+    title="FatSat (iNav lines = $(iNAV_lines))",
     yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
     xaxis=attr(;
         title="FatSat flip angle [deg]",
@@ -499,16 +504,71 @@ relayout!(
     hovermode="x unified",
 )
 figFatSat
-# Save figures
-savefig(figFatSat, "FatSat.html")
-savefig(fig1, "bSSFP_1hb.html")
-savefig(fig2, "bSSFP_2hb.html")
 
-#Simulacion para iNav_lines=2
-![Resultado iNav=2](simulaciones%20FAs/FAs_iNav_2.png)
+#Inversion Delay
+TIs = (60:10:130) # Inversion delay [ms]
+Δfs = (-1:0.2:1) .* (γ * sys.B0 * 1e-6)  # off-resonance Δf [s]
+mag4 = zeros(ComplexF64, im_segments, Niso*3, length(TIs), length(Δfs))
+@progress for (m, Δf) = enumerate(Δfs), (n, TI) = enumerate(TIs)
+	seq_params4 = merge(seq_params, (; IR_inversion_time=TI * 1e-3, RR=1.5))
+	sim_params4 = merge(sim_params, Dict("sim_method"=>BlochDict()))
+	seq4        = BOOST(seq_params4...)
+	obj4        = carotid_phantom(Δf)
+	magaux = @suppress simulate(obj4, seq4, sys; sim_params=sim_params4)
+	mag4[:, :, n, m] .= magaux[end-2im_segments+1:end-im_segments, :] # Bright-Blood
+end
 
-#Simulacion para iNav_lines=4
-![Resultado iNav=4](simulaciones%20FAs/FAs_iNavs_4.png)
+# Calculating results
+signal_2hb_caro_ir = reshape(
+    mean(abs.(mean(mag4[:, spins[1], :, :], 3)), 1), length(TIs), length(Δfs)
+)
+signal_2hb_bloo2_ir = reshape(
+    mean(abs.(mean(mag4[:, spins[2], :, :], 3)), 1), length(TIs), length(Δfs)
+)
+signal_2hb_fat_ir = reshape(
+    mean(abs.(mean(mag4[:, spins[3], :, :], 3)), 1), length(TIs), length(Δfs)
+)
 
-#Simulacion para iNav_lines=6
-![Resultado iNav=6](simulaciones%20FAs/FAs_iNavs_6.png)
+# Plotting results
+s15 = scatter(;
+    x=TIs,
+    y=signal_2hb_caro_ir[:],
+    name=labels[1],
+    legendgroup=labels[1],
+    line=attr(; color=colors[1]),
+)
+s25 = scatter(;
+    x=TIs,
+    y=signal_2hb_bloo2_ir[:],
+    name=labels[2],
+    legendgroup=labels[2],
+    line=attr(; color=colors[2]),
+)
+s35 = scatter(;
+    x=TIs,
+    y=signal_2hb_fat_ir[:],
+    name=labels[3],
+    legendgroup=labels[3],
+    line=attr(; color=colors[3]),
+)
+# Plots
+figTI = plot([s15, s25, s35])
+relayout!(
+    figTI;
+    title="Inversion Delay",
+    yaxis=attr(; title="Signal [a.u.]", tickmode="array"),
+    xaxis=attr(;
+        title="Inversion Delay [ms]",
+        tickmode="array",
+        tickvals=[TIs[1], 60, 70, 90,TIs[end]],
+        constrain="domain",
+    ),
+    font=attr(; family="CMU Serif", size=16, scaleanchor="x", scaleratio=1),
+    yaxis_range=[0, 0.3],
+    xaxis_range=[TIs[1], TIs[end]],
+    width=600,
+    height=400,
+    hovermode="x unified",
+)
+figTI
+
